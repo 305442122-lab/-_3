@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="水泥销售记账">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <title>水泥销售记账</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --primary-light: #dbeafe;
+            --bg: #f0f7ff;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --border: #e5e7eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+
+        .app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); position: relative; }
+
+        /* Header */
+        .header { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; padding: 16px; box-shadow: 0 2px 12px rgba(59,130,246,0.3); position: sticky; top: 0; z-index: 100; }
+        .header h1 { font-size: 18px; font-weight: 600; text-align: center; letter-spacing: 1px; }
+        .tabs { display: flex; justify-content: center; margin-top: 12px; background: rgba(255,255,255,0.2); border-radius: 20px; padding: 3px; }
+        .tab { flex: 1; padding: 7px 0; text-align: center; border-radius: 17px; font-size: 14px; color: rgba(255,255,255,0.9); transition: all .25s; cursor: pointer; }
+        .tab.active { background: #fff; color: var(--primary); font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+
+        /* Content */
+        .content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 76px; }
+
+        /* Filters */
+        .filters { background: var(--card-bg); border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: var(--shadow); }
+        .filter-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .filter-row:last-child { margin-bottom: 0; }
+        select, input[type="text"], input[type="date"], input[type="number"] {
+            border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; font-size: 14px; background: #fff; color: var(--text); outline: none; flex: 1; min-width: 0;
+        }
+        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+        .btn { border: none; border-radius: 8px; padding: 9px 14px; font-size: 14px; cursor: pointer; transition: opacity .2s; }
+        .btn:active { opacity: .85; }
+        .btn-clear { background: var(--primary-light); color: var(--primary-dark); }
+
+        /* Cards */
+        .card { background: var(--card-bg); border-radius: 12px; padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .card-date { color: var(--primary-dark); font-weight: 600; font-size: 14px; background: var(--primary-light); padding: 3px 8px; border-radius: 6px; }
+        .card-status { font-size: 12px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
+        .status-paid { background: #d1fae5; color: #047857; }
+        .status-unpaid { background: #fee2e2; color: #b91c1c; }
+        .card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 14px; color: var(--text-secondary); }
+        .card-body.full { grid-template-columns: 1fr; }
+        .card-body span.value { color: var(--text); font-weight: 500; }
+        .card-amount { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .amount { font-size: 18px; font-weight: 700; color: var(--primary-dark); }
+        .card-actions { display: flex; gap: 8px; }
+        .btn-icon { width: 32px; height: 32px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; }
+        .btn-edit { background: var(--primary-light); color: var(--primary-dark); }
+        .btn-del { background: #fee2e2; color: #b91c1c; }
+
+        .empty { text-align: center; padding: 50px 20px; color: var(--text-secondary); }
+        .empty-icon { width: 80px; height: 80px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 16px; }
+
+        /* FAB */
+        .fab { position: fixed; bottom: 74px; right: calc(50% - 240px + 16px); width: 56px; height: 56px; background: var(--primary); color: #fff; border-radius: 50%; border: none; font-size: 28px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(59,130,246,0.4); cursor: pointer; z-index: 90; }
+        @media (max-width: 480px) { .fab { right: 16px; } }
+
+        /* Bottom nav */
+        .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #fff; border-top: 1px solid var(--border); display: flex; padding: 8px 0; z-index: 100; }
+        .nav-item { flex: 1; text-align: center; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+        .nav-item.active { color: var(--primary); }
+        .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; display: none; align-items: flex-end; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; max-height: 90vh; overflow-y: auto; animation: slideUp .25s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; text-align: center; color: var(--text); }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; }
+        .form-row { display: flex; gap: 10px; }
+        .form-row .form-group { flex: 1; }
+        .radio-group { display: flex; gap: 10px; }
+        .radio { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; font-size: 14px; }
+        .radio.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary-dark); font-weight: 600; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-primary { flex: 1; background: var(--primary); color: #fff; padding: 12px; font-size: 15px; }
+        .btn-secondary { flex: 1; background: #f3f4f6; color: var(--text-secondary); padding: 12px; font-size: 15px; }
+        .total-preview { background: var(--primary-light); border-radius: 8px; padding: 10px; text-align: center; font-size: 15px; color: var(--primary-dark); margin-top: 4px; }
+        .total-preview b { font-size: 18px; }
+
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); text-align: center; }
+        .stat-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+        .stat-value { font-size: 20px; font-weight: 700; color: var(--primary-dark); }
+        .stat-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+        .section-title { font-size: 15px; font-weight: 600; margin: 16px 0 10px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+        .section-title::before { content: ""; width: 4px; height: 16px; background: var(--primary); border-radius: 2px; }
+        .table-card { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        th { color: var(--text-secondary); font-weight: 500; background: #f9fafb; }
+        tr:last-child td { border-bottom: none; }
+        .badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+        .badge-blue { background: var(--primary-light); color: var(--primary-dark); }
+
+        /* Excel 风格数据表格 */
+        .data-table-wrap { background: var(--card-bg); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+        .data-table-wrap .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 640px; }
+        .data-table thead th { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; font-weight: 600; padding: 10px 6px; text-align: center; position: sticky; top: 0; z-index: 5; font-size: 12px; border-right: 1px solid rgba(255,255,255,0.15); }
+        .data-table thead th:last-child { border-right: none; }
+        .data-table tbody td { padding: 9px 6px; text-align: center; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
+        .data-table tbody tr:nth-child(even) { background: #f8fbff; }
+        .data-table tbody tr:active { background: var(--primary-light); }
+        .data-table .col-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .data-table .col-money { text-align: right; font-variant-numeric: tabular-nums; color: var(--primary-dark); font-weight: 600; }
+        .data-table .row-sum td { background: #fef3c7 !important; font-weight: 700; color: var(--primary-dark); border-top: 2px solid var(--primary); }
+        .data-table .row-sum .col-money { font-size: 14px; }
+        .data-table .act-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer; font-size: 12px; margin: 0 2px; }
+        .data-table .act-edit { background: var(--primary-light); color: var(--primary-dark); }
+        .data-table .act-del { background: #fee2e2; color: #b91c1c; }
+        .data-table .pay-yes { color: #047857; font-weight: 600; }
+        .data-table .pay-no { color: #b91c1c; font-weight: 600; }
+        .table-summary { display: flex; justify-content: space-around; padding: 10px; background: var(--primary-light); font-size: 13px; color: var(--primary-dark); font-weight: 600; }
+        .table-summary span { text-align: center; }
+
+        /* Settings link */
+        .settings-link { text-align: center; margin: 10px 0; font-size: 13px; color: var(--primary-dark); text-decoration: underline; cursor: pointer; }
+
+        /* People manager */
+        .people-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .people-tag { background: var(--primary-light); color: var(--primary-dark); padding: 5px 10px; border-radius: 14px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+        .people-tag .remove { cursor: pointer; font-weight: 700; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <header class="header">
+        <h1>水泥销售记账</h1>
+        <div class="tabs">
+            <div class="tab active" data-tab="list">单据列表</div>
+            <div class="tab" data-tab="stats">数据统计</div>
+        </div>
+    </header>
+
+    <main class="content" id="content">
+        <!-- 列表页 -->
+        <div id="page-list">
+            <div class="filters">
+                <div class="filter-row">
+                    <select id="filterCustomer"><option value="">全部客户</option></select>
+                    <select id="filterVehicle"><option value="">全部车号</option></select>
+                </div>
+                <div class="filter-row">
+                    <input type="text" id="filterSearch" placeholder="搜索车号/客户/出货人">
+                    <button class="btn btn-clear" onclick="clearFilters()">清除筛选</button>
+                </div>
+            </div>
+            <div id="listContainer"></div>
+        </div>
+
+        <!-- 统计页 -->
+        <div id="page-stats" style="display:none;">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">总出货吨位</div>
+                    <div class="stat-value" id="stTotalTons">0</div>
+                    <div class="stat-sub">吨</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">总销售额</div>
+                    <div class="stat-value" id="stTotalAmount">0</div>
+                    <div class="stat-sub">元</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">已付金额</div>
+                    <div class="stat-value" id="stPaid">0</div>
+                    <div class="stat-sub">元</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">未付欠款</div>
+                    <div class="stat-value" id="stUnpaid">0</div>
+                    <div class="stat-sub">元</div>
+                </div>
+            </div>
+
+            <div class="section-title">按客户统计</div>
+            <div class="card table-card"><table><thead><tr><th>客户</th><th>出货量</th><th>应收款</th></tr></thead><tbody id="tbCustomer"></tbody></table></div>
+
+            <div class="section-title">按付款状态统计</div>
+            <div class="card table-card"><table><thead><tr><th>状态</th><th>出货总量</th><th>金额</th></tr></thead><tbody id="tbPay"></tbody></table></div>
+
+            <div class="section-title">付款状态查询</div>
+            <div class="card">
+                <div class="radio-group" style="margin-bottom:12px;">
+                    <div class="radio active" data-pay="已付" onclick="filterPayStatus(this)">已付单据</div>
+                    <div class="radio" data-pay="未付" onclick="filterPayStatus(this)">未付单据</div>
+                </div>
+                <div id="payDetailList"></div>
+            </div>
+        </div>
+    </main>
+
+    <button class="fab" onclick="openModal()">+</button>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" data-nav="list"><span class="nav-icon">&#9776;</span>单据</div>
+        <div class="nav-item" data-nav="stats"><span class="nav-icon">&#128202;</span>统计</div>
+        <div class="nav-item" data-nav="settings"><span class="nav-icon">&#9881;</span>设置</div>
+    </nav>
+
+    <!-- 单据弹窗 -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModalOnOverlay(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-title" id="modalTitle">新增单据</div>
+            <form id="saleForm" onsubmit="saveForm(event)">
+                <input type="hidden" id="editId">
+                <div class="form-group">
+                    <label>日期</label>
+                    <input type="date" id="fDate" required>
+                </div>
+                <div class="form-group">
+                    <label>车号</label>
+                    <select id="fVehicle" required><option value="">请选择车号</option></select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>吨位</label>
+                        <input type="number" id="fTons" step="0.01" min="0" placeholder="0.00" required oninput="calcTotal()">
+                    </div>
+                    <div class="form-group">
+                        <label>货物类型</label>
+                        <select id="fType" required>
+                            <option value="">请选择</option>
+                            <option value="PC">PC</option>
+                            <option value="M">M</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>出货人（客户）</label>
+                    <select id="fPerson" required><option value="">请选择出货人</option></select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>单价（元/吨）</label>
+                        <input type="number" id="fPrice" step="0.01" min="0" placeholder="0.00" required oninput="calcTotal()">
+                    </div>
+                    <div class="form-group">
+                        <label>总金额</label>
+                        <div class="total-preview"><b id="fTotal">0.00</b> 元</div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>付款状态</label>
+                    <div class="radio-group">
+                        <div class="radio active" data-val="已付" onclick="setPayStatus(this)">已付</div>
+                        <div class="radio" data-val="未付" onclick="setPayStatus(this)">未付</div>
+                    </div>
+                    <input type="hidden" id="fPaid" value="已付">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div class="modal-overlay" id="settingsOverlay" onclick="closeSettingsOnOverlay(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-title">设置</div>
+            <div class="section-title">管理出货人</div>
+            <div class="people-list" id="peopleList"></div>
+            <div class="form-row">
+                <input type="text" id="newPerson" placeholder="输入新出货人姓名">
+                <button class="btn btn-primary" onclick="addPerson()">添加</button>
+            </div>
+            <div class="section-title">管理车号</div>
+            <div class="people-list" id="vehicleList"></div>
+            <div class="form-row">
+                <input type="text" id="newVehicle" placeholder="输入新车号">
+                <button class="btn btn-primary" onclick="addVehicle()">添加</button>
+            </div>
+            <div class="modal-actions" style="margin-top:24px;">
+                <button class="btn btn-secondary" onclick="closeSettings()">关闭</button>
+                <button class="btn btn-primary" onclick="exportData()">导出Excel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const LS_RECORDS = 'cement_records';
+const LS_PEOPLE = 'cement_people';
+const LS_VEHICLES = 'cement_vehicles';
+
+let records = [];
+let people = ['大宁','安平','铁杆','立永','王峰','周伟'];
+let vehicles = ['2C961','861','43121','5586','543PG'];
+
+function init() {
+    loadData();
+    renderFilters();
+    renderList();
+    renderStats();
+    document.getElementById('fDate').value = today();
+}
+
+function loadData() {
+    const r = localStorage.getItem(LS_RECORDS);
+    if (r) records = JSON.parse(r);
+    const p = localStorage.getItem(LS_PEOPLE);
+    if (p) people = JSON.parse(p);
+    const v = localStorage.getItem(LS_VEHICLES);
+    if (v) vehicles = JSON.parse(v);
+}
+
+function saveRecords() {
+    localStorage.setItem(LS_RECORDS, JSON.stringify(records));
+}
+function savePeople() {
+    localStorage.setItem(LS_PEOPLE, JSON.stringify(people));
+}
+function saveVehicles() {
+    localStorage.setItem(LS_VEHICLES, JSON.stringify(vehicles));
+}
+
+function today() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function formatDate(d) {
+    if (!d) return '';
+    const [y,m,day] = d.split('-');
+    return `${y}年${parseInt(m)}月${parseInt(day)}日`;
+}
+
+function formatMoney(n) {
+    return Number(n).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+document.querySelectorAll('.nav-item').forEach(t => t.addEventListener('click', () => {
+    if (t.dataset.nav === 'settings') { openSettings(); }
+    else { switchTab(t.dataset.nav); }
+}));
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab, .nav-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll(`[data-tab="${tab}"], [data-nav="${tab}"]`).forEach(el => el.classList.add('active'));
+    document.getElementById('page-list').style.display = tab === 'list' ? 'block' : 'none';
+    document.getElementById('page-stats').style.display = tab === 'stats' ? 'block' : 'none';
+    if (tab === 'stats') renderStats();
+}
+
+/* ---------- List ---------- */
+function renderFilters() {
+    const cSel = document.getElementById('filterCustomer');
+    const vSel = document.getElementById('filterVehicle');
+    const cVal = cSel.value, vVal = vSel.value;
+    cSel.innerHTML = '<option value="">全部客户</option>' + people.map(p => `<option value="${p}">${p}</option>`).join('');
+    vSel.innerHTML = '<option value="">全部车号</option>' + vehicles.map(v => `<option value="${v}">车号${v}</option>`).join('');
+    cSel.value = cVal; vSel.value = vVal;
+
+    const fVehicle = document.getElementById('fVehicle');
+    const fPerson = document.getElementById('fPerson');
+    const fvVal = fVehicle.value, fpVal = fPerson.value;
+    fVehicle.innerHTML = '<option value="">请选择车号</option>' + vehicles.map(v => `<option value="${v}">车号${v}</option>`).join('');
+    fPerson.innerHTML = '<option value="">请选择出货人</option>' + people.map(p => `<option value="${p}">${p}</option>`).join('');
+    fVehicle.value = fvVal; fPerson.value = fpVal;
+}
+
+function getFilteredRecords() {
+    const c = document.getElementById('filterCustomer').value;
+    const v = document.getElementById('filterVehicle').value;
+    const s = document.getElementById('filterSearch').value.trim().toLowerCase();
+    return records.filter(r => {
+        if (c && r.person !== c) return false;
+        if (v && r.vehicle !== v) return false;
+        if (s) {
+            const hay = `${r.vehicle}${r.person}${r.type}${r.paid}`.toLowerCase();
+            if (!hay.includes(s)) return false;
+        }
+        return true;
+    }).sort((a,b) => new Date(b.date) - new Date(a.date));
+}
+
+function renderList() {
+    const container = document.getElementById('listContainer');
+    const list = getFilteredRecords();
+    if (!list.length) {
+        container.innerHTML = `<div class="empty"><div class="empty-icon">&#128196;</div><p>暂无销售单据</p><p style="font-size:13px;margin-top:6px;">点击右下角 + 新增单据</p></div>`;
+        return;
+    }
+    const totalTons = list.reduce((s,r) => s + r.tons, 0);
+    const totalAmount = list.reduce((s,r) => s + r.amount, 0);
+    container.innerHTML = `
+        <div class="data-table-wrap">
+            <div class="table-summary">
+                <span>共 ${list.length} 单</span>
+                <span>合计 ${totalTons.toFixed(2)} 吨</span>
+                <span>总额 ¥${formatMoney(totalAmount)}</span>
+            </div>
+            <div class="scroll-x">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>车号</th>
+                            <th>吨位</th>
+                            <th>类型</th>
+                            <th>出货人</th>
+                            <th>单价</th>
+                            <th>总金额</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list.map(r => `
+                            <tr>
+                                <td>${formatDate(r.date)}</td>
+                                <td>${r.vehicle}</td>
+                                <td class="col-num">${r.tons.toFixed(2)}</td>
+                                <td><span class="badge badge-blue">${r.type}</span></td>
+                                <td>${r.person}</td>
+                                <td class="col-num">${r.price}</td>
+                                <td class="col-money">${formatMoney(r.amount)}</td>
+                                <td><span class="${r.paid==='已付'?'pay-yes':'pay-no'}">${r.paid}</span></td>
+                                <td>
+                                    <button class="act-btn act-edit" onclick="editRecord('${r.id}')">&#9998;</button>
+                                    <button class="act-btn act-del" onclick="deleteRecord('${r.id}')">&#10005;</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                        <tr class="row-sum">
+                            <td>合计</td>
+                            <td>-</td>
+                            <td class="col-num">${totalTons.toFixed(2)}</td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td class="col-money">¥${formatMoney(totalAmount)}</td>
+                            <td>-</td>
+                            <td>-</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+['filterCustomer','filterVehicle','filterSearch'].forEach(id => {
+    document.getElementById(id).addEventListener('input', renderList);
+});
+
+function clearFilters() {
+    document.getElementById('filterCustomer').value = '';
+    document.getElementById('filterVehicle').value = '';
+    document.getElementById('filterSearch').value = '';
+    renderList();
+}
+
+/* ---------- Modal Form ---------- */
+function openModal(id) {
+    document.getElementById('modalOverlay').classList.add('show');
+    if (id) {
+        const r = records.find(x => x.id === id);
+        document.getElementById('modalTitle').innerText = '编辑单据';
+        document.getElementById('editId').value = r.id;
+        document.getElementById('fDate').value = r.date;
+        document.getElementById('fVehicle').value = r.vehicle;
+        document.getElementById('fTons').value = r.tons;
+        document.getElementById('fType').value = r.type;
+        document.getElementById('fPerson').value = r.person;
+        document.getElementById('fPrice').value = r.price;
+        document.getElementById('fPaid').value = r.paid;
+        document.querySelectorAll('.radio').forEach(radio => radio.classList.toggle('active', radio.dataset.val === r.paid));
+    } else {
+        document.getElementById('modalTitle').innerText = '新增单据';
+        document.getElementById('saleForm').reset();
+        document.getElementById('editId').value = '';
+        document.getElementById('fDate').value = today();
+        document.getElementById('fPaid').value = '已付';
+        document.querySelectorAll('.radio').forEach(radio => radio.classList.toggle('active', radio.dataset.val === '已付'));
+    }
+    calcTotal();
+    renderFilters();
+}
+
+function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('show');
+}
+function closeModalOnOverlay(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
+
+function setPayStatus(el) {
+    document.querySelectorAll('.radio').forEach(r => r.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('fPaid').value = el.dataset.val;
+}
+
+function calcTotal() {
+    const tons = parseFloat(document.getElementById('fTons').value) || 0;
+    const price = parseFloat(document.getElementById('fPrice').value) || 0;
+    document.getElementById('fTotal').innerText = formatMoney(tons * price);
+}
+
+function saveForm(e) {
+    e.preventDefault();
+    const id = document.getElementById('editId').value;
+    const record = {
+        id: id || Date.now().toString(),
+        date: document.getElementById('fDate').value,
+        vehicle: document.getElementById('fVehicle').value,
+        tons: parseFloat(document.getElementById('fTons').value),
+        type: document.getElementById('fType').value,
+        person: document.getElementById('fPerson').value,
+        price: parseFloat(document.getElementById('fPrice').value),
+        amount: parseFloat(document.getElementById('fTons').value) * parseFloat(document.getElementById('fPrice').value),
+        paid: document.getElementById('fPaid').value
+    };
+    if (id) {
+        const idx = records.findIndex(r => r.id === id);
+        records[idx] = record;
+    } else {
+        records.push(record);
+    }
+    saveRecords();
+    closeModal();
+    renderList();
+    renderStats();
+}
+
+function editRecord(id) { openModal(id); }
+
+function deleteRecord(id) {
+    if (confirm('确定删除这条单据吗？')) {
+        records = records.filter(r => r.id !== id);
+        saveRecords();
+        renderList();
+        renderStats();
+    }
+}
+
+/* ---------- Stats ---------- */
+function groupBy(arr, key, sumKey) {
+    const map = {};
+    arr.forEach(item => {
+        const k = item[key];
+        if (!map[k]) map[k] = 0;
+        map[k] += item[sumKey];
+    });
+    return Object.entries(map).sort((a,b) => b[1] - a[1]);
+}
+
+function renderStats() {
+    const totalTons = records.reduce((s,r) => s + r.tons, 0);
+    const totalAmount = records.reduce((s,r) => s + r.amount, 0);
+    const paidAmount = records.filter(r => r.paid === '已付').reduce((s,r) => s + r.amount, 0);
+    const unpaidAmount = records.filter(r => r.paid === '未付').reduce((s,r) => s + r.amount, 0);
+
+    document.getElementById('stTotalTons').innerText = totalTons.toFixed(2);
+    document.getElementById('stTotalAmount').innerText = formatMoney(totalAmount);
+    document.getElementById('stPaid').innerText = formatMoney(paidAmount);
+    document.getElementById('stUnpaid').innerText = formatMoney(unpaidAmount);
+
+    // 按客户统计：出货量、应收款
+    const cust = {};
+    records.forEach(r => {
+        if (!cust[r.person]) cust[r.person] = { tons: 0, amount: 0 };
+        cust[r.person].tons += r.tons;
+        cust[r.person].amount += r.amount;
+    });
+    document.getElementById('tbCustomer').innerHTML = Object.entries(cust).sort((a,b) => b[1].amount - a[1].amount)
+        .map(([k,v]) => `<tr><td>${k}</td><td>${v.tons.toFixed(2)} 吨</td><td>¥ ${formatMoney(v.amount)}</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:#999">暂无数据</td></tr>';
+
+    const paidTons = records.filter(r => r.paid === '已付').reduce((s,r) => s + r.tons, 0);
+    const unpaidTons = records.filter(r => r.paid === '未付').reduce((s,r) => s + r.tons, 0);
+    document.getElementById('tbPay').innerHTML = `
+        <tr><td>已付</td><td>${paidTons.toFixed(2)} 吨</td><td>¥ ${formatMoney(paidAmount)}</td></tr>
+        <tr><td>未付</td><td>${unpaidTons.toFixed(2)} 吨</td><td>¥ ${formatMoney(unpaidAmount)}</td></tr>
+    `;
+
+    renderPayDetail('已付');
+}
+
+/* ---------- 付款状态查询 ---------- */
+let currentPayFilter = '已付';
+
+function filterPayStatus(el) {
+    document.querySelectorAll('[data-pay]').forEach(r => r.classList.remove('active'));
+    el.classList.add('active');
+    currentPayFilter = el.dataset.pay;
+    renderPayDetail(currentPayFilter);
+}
+
+function renderPayDetail(status) {
+    const list = records.filter(r => r.paid === status).sort((a,b) => new Date(b.date) - new Date(a.date));
+    const container = document.getElementById('payDetailList');
+    if (!list.length) {
+        container.innerHTML = `<div style="text-align:center;padding:20px;color:#999;">暂无${status}单据</div>`;
+        return;
+    }
+    const totalAmount = list.reduce((s,r) => s + r.amount, 0);
+    const totalTons = list.reduce((s,r) => s + r.tons, 0);
+    const payColor = status === '已付' ? '#047857' : '#b91c1c';
+    const payBg = status === '已付' ? '#d1fae5' : '#fee2e2';
+    container.innerHTML = `
+        <div class="data-table-wrap">
+            <div class="table-summary" style="background:${payBg};color:${payColor};">
+                <span>共 ${list.length} 单</span>
+                <span>合计 ${totalTons.toFixed(2)} 吨</span>
+                <span style="font-size:16px;">${status}总额 ¥${formatMoney(totalAmount)}</span>
+            </div>
+            <div class="scroll-x">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>车号</th>
+                            <th>吨位</th>
+                            <th>类型</th>
+                            <th>出货人</th>
+                            <th>单价</th>
+                            <th>总金额</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list.map(r => `
+                            <tr>
+                                <td>${formatDate(r.date)}</td>
+                                <td>${r.vehicle}</td>
+                                <td class="col-num">${r.tons.toFixed(2)}</td>
+                                <td><span class="badge badge-blue">${r.type}</span></td>
+                                <td>${r.person}</td>
+                                <td class="col-num">${r.price}</td>
+                                <td class="col-money">${formatMoney(r.amount)}</td>
+                            </tr>
+                        `).join('')}
+                        <tr class="row-sum">
+                            <td>合计</td>
+                            <td>-</td>
+                            <td class="col-num">${totalTons.toFixed(2)}</td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td class="col-money">¥${formatMoney(totalAmount)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+/* ---------- Settings / People & Vehicles ---------- */
+function openSettings() {
+    renderSettings();
+    document.getElementById('settingsOverlay').classList.add('show');
+}
+function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
+function closeSettingsOnOverlay(e) { if (e.target === document.getElementById('settingsOverlay')) closeSettings(); }
+
+function renderSettings() {
+    document.getElementById('peopleList').innerHTML = people.map(p => `<span class="people-tag">${p} <span class="remove" onclick="removePerson('${p}')">×</span></span>`).join('');
+    document.getElementById('vehicleList').innerHTML = vehicles.map(v => `<span class="people-tag">${v} <span class="remove" onclick="removeVehicle('${v}')">×</span></span>`).join('');
+}
+
+function addPerson() {
+    const input = document.getElementById('newPerson');
+    const name = input.value.trim();
+    if (!name) return;
+    if (people.includes(name)) { alert('该出货人已存在'); return; }
+    people.push(name);
+    savePeople();
+    input.value = '';
+    renderSettings();
+    renderFilters();
+}
+
+function removePerson(name) {
+    if (!confirm(`确定删除出货人「${name}」吗？`)) return;
+    people = people.filter(p => p !== name);
+    savePeople();
+    renderSettings();
+    renderFilters();
+}
+
+function addVehicle() {
+    const input = document.getElementById('newVehicle');
+    const v = input.value.trim();
+    if (!v) return;
+    if (vehicles.includes(v)) { alert('该车号已存在'); return; }
+    vehicles.push(v);
+    saveVehicles();
+    input.value = '';
+    renderSettings();
+    renderFilters();
+}
+
+function removeVehicle(v) {
+    if (!confirm(`确定删除车号「${v}」吗？`)) return;
+    vehicles = vehicles.filter(x => x !== v);
+    saveVehicles();
+    renderSettings();
+    renderFilters();
+}
+
+function escapeXml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+
+function exportData() {
+    if (!records.length) { alert('暂无单据数据可导出'); return; }
+
+    // 汇总统计
+    const totalTons = records.reduce((s,r) => s + r.tons, 0);
+    const totalAmount = records.reduce((s,r) => s + r.amount, 0);
+    const paidAmount = records.filter(r => r.paid === '已付').reduce((s,r) => s + r.amount, 0);
+    const unpaidAmount = records.filter(r => r.paid === '未付').reduce((s,r) => s + r.amount, 0);
+
+    // 按客户统计
+    const cust = {};
+    records.forEach(r => {
+        if (!cust[r.person]) cust[r.person] = { tons: 0, amount: 0 };
+        cust[r.person].tons += r.tons;
+        cust[r.person].amount += r.amount;
+    });
+
+    const sortedRecords = [...records].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    // 构建 Excel XML（.xls 格式，Excel/WPS/Numbers 均可直接打开）
+    let rows = '';
+    // 标题行
+    rows += `<Row><Cell ss:MergeAcross="7" ss:StyleID="title"><Data ss:Type="String">水泥销售记账备份 - ${today()}</Data></Cell></Row>`;
+    rows += `<Row><Cell ss:MergeAcross="7" ss:StyleID="info"><Data ss:Type="String">总吨位: ${totalTons.toFixed(2)} 吤  |  总销售额: ¥${formatMoney(totalAmount)}  |  已付: ¥${formatMoney(paidAmount)}  |  未付: ¥${formatMoney(unpaidAmount)}</Data></Cell></Row>`;
+    rows += `<Row ss:AutoFitHeight="0" ss:Height="6"/>`;
+
+    // 单据明细表头
+    const headers = ['日期','车号','吨位(吨)','货物类型','出货人','单价(元/吨)','总金额(元)','付款状态'];
+    rows += '<Row>';
+    headers.forEach(h => rows += `<Cell ss:StyleID="head"><Data ss:Type="String">${h}</Data></Cell>`);
+    rows += '</Row>';
+
+    // 单据明细数据
+    sortedRecords.forEach(r => {
+        rows += '<Row>';
+        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(formatDate(r.date))}</Data></Cell>`;
+        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(r.vehicle)}</Data></Cell>`;
+        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${r.tons}</Data></Cell>`;
+        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(r.type)}</Data></Cell>`;
+        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(r.person)}</Data></Cell>`;
+        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${r.price}</Data></Cell>`;
+        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${r.amount.toFixed(2)}</Data></Cell>`;
+        const payStyle = r.paid === '已付' ? 'payYes' : 'payNo';
+        rows += `<Cell ss:StyleID="${payStyle}"><Data ss:Type="String">${escapeXml(r.paid)}</Data></Cell>`;
+        rows += '</Row>';
+    });
+
+    // 合计行
+    rows += '<Row>';
+    rows += `<Cell ss:StyleID="sum"><Data ss:Type="String">合计</Data></Cell>`;
+    rows += `<Cell ss:StyleID="sum"/>`;
+    rows += `<Cell ss:StyleID="sumNum"><Data ss:Type="Number">${totalTons.toFixed(2)}</Data></Cell>`;
+    rows += `<Cell ss:StyleID="sum"/>`;
+    rows += `<Cell ss:StyleID="sum"/>`;
+    rows += `<Cell ss:StyleID="sum"/>`;
+    rows += `<Cell ss:StyleID="sumNum"><Data ss:Type="Number">${totalAmount.toFixed(2)}</Data></Cell>`;
+    rows += `<Cell ss:StyleID="sum"/>`;
+    rows += '</Row>';
+
+    rows += `<Row ss:AutoFitHeight="0" ss:Height="12"/>`;
+
+    // 按客户统计表
+    rows += `<Row><Cell ss:MergeAcross="2" ss:StyleID="title"><Data ss:Type="String">按客户统计</Data></Cell></Row>`;
+    rows += '<Row>';
+    ['客户','出货量(吨)','应收款(元)'].forEach(h => rows += `<Cell ss:StyleID="head"><Data ss:Type="String">${h}</Data></Cell>`);
+    rows += '</Row>';
+    Object.entries(cust).sort((a,b) => b[1].amount - a[1].amount).forEach(([k,v]) => {
+        rows += '<Row>';
+        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(k)}</Data></Cell>`;
+        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${v.tons.toFixed(2)}</Data></Cell>`;
+        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${v.amount.toFixed(2)}</Data></Cell>`;
+        rows += '</Row>';
+    });
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+ <Style ss:ID="Default" ss:Name="Normal"><Font ss:FontName="微软雅黑" ss:Size="11"/></Style>
+ <Style ss:ID="title"><Alignment ss:Horizontal="Center"/><Font ss:FontName="微软雅黑" ss:Size="14" ss:Bold="1"/><Interior ss:Color="#3B82F6" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1"/></Style>
+ <Style ss:ID="info"><Alignment ss:Horizontal="Center"/><Font ss:FontName="微软雅黑" ss:Size="11" ss:Bold="1"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/></Style>
+ <Style ss:ID="head"><Alignment ss:Horizontal="Center"/><Font ss:FontName="微软雅黑" ss:Size="11" ss:Bold="1"/><Interior ss:Color="#EFF6FF" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
+ <Style ss:ID="cell"><Alignment ss:Horizontal="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style>
+ <Style ss:ID="num"><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style>
+ <Style ss:ID="payYes"><Alignment ss:Horizontal="Center"/><Font ss:Color="#047857" ss:Bold="1"/><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style>
+ <Style ss:ID="payNo"><Alignment ss:Horizontal="Center"/><Font ss:Color="#B91C1C" ss:Bold="1"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style>
+ <Style ss:ID="sum"><Alignment ss:Horizontal="Center"/><Font ss:Bold="1"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
+ <Style ss:ID="sumNum"><Alignment ss:Horizontal="Right"/><Font ss:Bold="1" ss:Color="#2563EB"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
+</Styles>
+<Worksheet ss:Name="销售明细">
+<Table>${rows}</Table>
+</Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `水泥销售备份_${today()}.xls`;
+    a.click();
+}
+
+init();
+</script>
+</body>
+</html>
