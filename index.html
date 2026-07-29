@@ -301,7 +301,7 @@
             </div>
             <div class="modal-actions" style="margin-top:24px;">
                 <button class="btn btn-secondary" onclick="closeSettings()">关闭</button>
-                <button class="btn btn-primary" onclick="exportData()">导出Excel</button>
+                <button class="btn btn-primary" onclick="exportData()">导出CSV</button>
             </div>
         </div>
     </div>
@@ -548,6 +548,7 @@ function saveForm(e) {
     }
     saveRecords();
     closeModal();
+    clearFilters();
     renderList();
     renderStats();
 }
@@ -732,6 +733,15 @@ function escapeXml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 }
 
+function csvCell(v) {
+    const s = (v === null || v === undefined) ? '' : String(v);
+    // 如果包含逗号、双引号或换行，则加双引号包裹并转义
+    if (/[",\n\r]/.test(s)) {
+        return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+}
+
 function exportData() {
     if (!records.length) { alert('暂无单据数据可导出'); return; }
 
@@ -751,86 +761,44 @@ function exportData() {
 
     const sortedRecords = [...records].sort((a,b) => new Date(b.date) - new Date(a.date));
 
-    // 构建 Excel XML（.xls 格式，Excel/WPS/Numbers 均可直接打开）
-    let rows = '';
-    // 标题行
-    rows += `<Row><Cell ss:MergeAcross="7" ss:StyleID="title"><Data ss:Type="String">水泥销售记账备份 - ${today()}</Data></Cell></Row>`;
-    rows += `<Row><Cell ss:MergeAcross="7" ss:StyleID="info"><Data ss:Type="String">总吨位: ${totalTons.toFixed(2)} 吤  |  总销售额: ¥${formatMoney(totalAmount)}  |  已付: ¥${formatMoney(paidAmount)}  |  未付: ¥${formatMoney(unpaidAmount)}</Data></Cell></Row>`;
-    rows += `<Row ss:AutoFitHeight="0" ss:Height="6"/>`;
+    let lines = [];
+    lines.push(['水泥销售记账备份', '日期：' + today()]);
+    lines.push([]);
+    lines.push(['总吨位(吨)', '总销售额(元)', '已付金额(元)', '未付金额(元)']);
+    lines.push([totalTons.toFixed(2), totalAmount.toFixed(2), paidAmount.toFixed(2), unpaidAmount.toFixed(2)]);
+    lines.push([]);
 
-    // 单据明细表头
-    const headers = ['日期','车号','吨位(吨)','货物类型','出货人','单价(元/吨)','总金额(元)','付款状态'];
-    rows += '<Row>';
-    headers.forEach(h => rows += `<Cell ss:StyleID="head"><Data ss:Type="String">${h}</Data></Cell>`);
-    rows += '</Row>';
-
-    // 单据明细数据
+    // 单据明细
+    lines.push(['销售明细']);
+    lines.push(['日期', '车号', '吨位(吨)', '货物类型', '出货人', '单价(元/吨)', '总金额(元)', '付款状态']);
     sortedRecords.forEach(r => {
-        rows += '<Row>';
-        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(formatDate(r.date))}</Data></Cell>`;
-        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(r.vehicle)}</Data></Cell>`;
-        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${r.tons}</Data></Cell>`;
-        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(r.type)}</Data></Cell>`;
-        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(r.person)}</Data></Cell>`;
-        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${r.price}</Data></Cell>`;
-        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${r.amount.toFixed(2)}</Data></Cell>`;
-        const payStyle = r.paid === '已付' ? 'payYes' : 'payNo';
-        rows += `<Cell ss:StyleID="${payStyle}"><Data ss:Type="String">${escapeXml(r.paid)}</Data></Cell>`;
-        rows += '</Row>';
+        lines.push([
+            formatDate(r.date),
+            r.vehicle,
+            r.tons.toFixed(2),
+            r.type,
+            r.person,
+            r.price.toFixed(2),
+            r.amount.toFixed(2),
+            r.paid
+        ]);
     });
+    lines.push(['合计', '', totalTons.toFixed(2), '', '', '', totalAmount.toFixed(2), '']);
+    lines.push([]);
 
-    // 合计行
-    rows += '<Row>';
-    rows += `<Cell ss:StyleID="sum"><Data ss:Type="String">合计</Data></Cell>`;
-    rows += `<Cell ss:StyleID="sum"/>`;
-    rows += `<Cell ss:StyleID="sumNum"><Data ss:Type="Number">${totalTons.toFixed(2)}</Data></Cell>`;
-    rows += `<Cell ss:StyleID="sum"/>`;
-    rows += `<Cell ss:StyleID="sum"/>`;
-    rows += `<Cell ss:StyleID="sum"/>`;
-    rows += `<Cell ss:StyleID="sumNum"><Data ss:Type="Number">${totalAmount.toFixed(2)}</Data></Cell>`;
-    rows += `<Cell ss:StyleID="sum"/>`;
-    rows += '</Row>';
-
-    rows += `<Row ss:AutoFitHeight="0" ss:Height="12"/>`;
-
-    // 按客户统计表
-    rows += `<Row><Cell ss:MergeAcross="2" ss:StyleID="title"><Data ss:Type="String">按客户统计</Data></Cell></Row>`;
-    rows += '<Row>';
-    ['客户','出货量(吨)','应收款(元)'].forEach(h => rows += `<Cell ss:StyleID="head"><Data ss:Type="String">${h}</Data></Cell>`);
-    rows += '</Row>';
+    // 按客户统计
+    lines.push(['按客户统计']);
+    lines.push(['客户', '出货量(吨)', '应收款(元)']);
     Object.entries(cust).sort((a,b) => b[1].amount - a[1].amount).forEach(([k,v]) => {
-        rows += '<Row>';
-        rows += `<Cell ss:StyleID="cell"><Data ss:Type="String">${escapeXml(k)}</Data></Cell>`;
-        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${v.tons.toFixed(2)}</Data></Cell>`;
-        rows += `<Cell ss:StyleID="num"><Data ss:Type="Number">${v.amount.toFixed(2)}</Data></Cell>`;
-        rows += '</Row>';
+        lines.push([k, v.tons.toFixed(2), v.amount.toFixed(2)]);
     });
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Styles>
- <Style ss:ID="Default" ss:Name="Normal"><Font ss:FontName="微软雅黑" ss:Size="11"/></Style>
- <Style ss:ID="title"><Alignment ss:Horizontal="Center"/><Font ss:FontName="微软雅黑" ss:Size="14" ss:Bold="1"/><Interior ss:Color="#3B82F6" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1"/></Style>
- <Style ss:ID="info"><Alignment ss:Horizontal="Center"/><Font ss:FontName="微软雅黑" ss:Size="11" ss:Bold="1"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/></Style>
- <Style ss:ID="head"><Alignment ss:Horizontal="Center"/><Font ss:FontName="微软雅黑" ss:Size="11" ss:Bold="1"/><Interior ss:Color="#EFF6FF" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
- <Style ss:ID="cell"><Alignment ss:Horizontal="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style>
- <Style ss:ID="num"><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style>
- <Style ss:ID="payYes"><Alignment ss:Horizontal="Center"/><Font ss:Color="#047857" ss:Bold="1"/><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style>
- <Style ss:ID="payNo"><Alignment ss:Horizontal="Center"/><Font ss:Color="#B91C1C" ss:Bold="1"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style>
- <Style ss:ID="sum"><Alignment ss:Horizontal="Center"/><Font ss:Bold="1"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
- <Style ss:ID="sumNum"><Alignment ss:Horizontal="Right"/><Font ss:Bold="1" ss:Color="#2563EB"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
-</Styles>
-<Worksheet ss:Name="销售明细">
-<Table>${rows}</Table>
-</Worksheet>
-</Workbook>`;
+    const csv = '\uFEFF' + lines.map(row => row.map(csvCell).join(',')).join('\r\n');
 
-    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `水泥销售备份_${today()}.xls`;
+    a.download = `水泥销售备份_${today()}.csv`;
     a.click();
 }
 
