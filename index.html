@@ -137,6 +137,9 @@
         .data-table .act-del { background: #fee2e2; color: #b91c1c; }
         .data-table .pay-yes { color: #047857; font-weight: 600; }
         .data-table .pay-no { color: #b91c1c; font-weight: 600; }
+        .data-table .pay-part { color: #d97706; font-weight: 600; }
+        .data-table .col-owed { text-align: right; font-variant-numeric: tabular-nums; color: #b91c1c; font-weight: 600; }
+        .data-table .col-owed-zero { text-align: right; font-variant-numeric: tabular-nums; color: #9ca3af; }
         .table-summary { display: flex; justify-content: space-around; padding: 10px; background: var(--primary-light); font-size: 13px; color: var(--primary-dark); font-weight: 600; }
         .table-summary span { text-align: center; }
 
@@ -177,40 +180,19 @@
 
         <!-- 统计页 -->
         <div id="page-stats" style="display:none;">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">总出货吨位</div>
-                    <div class="stat-value" id="stTotalTons">0</div>
-                    <div class="stat-sub">吨</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">总销售额</div>
-                    <div class="stat-value" id="stTotalAmount">0</div>
-                    <div class="stat-sub">元</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">已付金额</div>
-                    <div class="stat-value" id="stPaid">0</div>
-                    <div class="stat-sub">元</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">未付欠款</div>
-                    <div class="stat-value" id="stUnpaid">0</div>
-                    <div class="stat-sub">元</div>
-                </div>
-            </div>
-
             <div class="section-title">按客户统计</div>
-            <div class="card table-card"><table><thead><tr><th>客户</th><th>出货量</th><th>应收款</th></tr></thead><tbody id="tbCustomer"></tbody></table></div>
+            <div class="card table-card"><table><thead><tr><th>客户</th><th>出货量</th><th>应收款</th><th>已收</th><th>欠款</th></tr></thead><tbody id="tbCustomer"></tbody></table></div>
 
-            <div class="section-title">按付款状态统计</div>
-            <div class="card table-card"><table><thead><tr><th>状态</th><th>出货总量</th><th>金额</th></tr></thead><tbody id="tbPay"></tbody></table></div>
+            <div class="section-title">按付款状态统计（按出货人）</div>
+            <div class="card table-card"><table><thead><tr><th>出货人</th><th>已付(吨/元)</th><th>部分付款(吨/元)</th><th>未付(吨/元)</th></tr></thead><tbody id="tbPay"></tbody></table></div>
 
             <div class="section-title">付款状态查询</div>
             <div class="card">
                 <div class="radio-group" style="margin-bottom:12px;">
-                    <div class="radio active" data-pay="已付" onclick="filterPayStatus(this)">已付单据</div>
-                    <div class="radio" data-pay="未付" onclick="filterPayStatus(this)">未付单据</div>
+                    <div class="radio active" data-pay="已付" onclick="filterPayStatus(this)">已付</div>
+                    <div class="radio" data-pay="部分付款" onclick="filterPayStatus(this)">部分付款</div>
+                    <div class="radio" data-pay="未付" onclick="filterPayStatus(this)">未付</div>
+                    <div class="radio" data-pay="欠款" onclick="filterPayStatus(this)">欠款明细</div>
                 </div>
                 <div id="payDetailList"></div>
             </div>
@@ -271,9 +253,17 @@
                     <label>付款状态</label>
                     <div class="radio-group">
                         <div class="radio active" data-val="已付" onclick="setPayStatus(this)">已付</div>
+                        <div class="radio" data-val="部分付款" onclick="setPayStatus(this)">部分付款</div>
                         <div class="radio" data-val="未付" onclick="setPayStatus(this)">未付</div>
                     </div>
                     <input type="hidden" id="fPaid" value="已付">
+                </div>
+                <div class="form-group" id="paidAmountGroup" style="display:none;">
+                    <label>已收金额（元，可大于总金额）</label>
+                    <input type="number" id="fPaidAmount" step="0.01" min="0" placeholder="0.00" oninput="calcOwed()">
+                    <div class="total-preview" id="fOwedBox" style="margin-top:6px;background:#fee2e2;color:#b91c1c;">
+                        剩余欠款 <b id="fOwed">0.00</b> 元
+                    </div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
@@ -305,6 +295,7 @@
             </div>
         </div>
     </div>
+
 </div>
 
 <script>
@@ -414,12 +405,16 @@ function renderList() {
     }
     const totalTons = list.reduce((s,r) => s + r.tons, 0);
     const totalAmount = list.reduce((s,r) => s + r.amount, 0);
+    const totalPaid = list.reduce((s,r) => s + (r.paidAmount||0), 0);
+    const totalOwed = list.reduce((s,r) => s + (r.owedAmount||0), 0);
     container.innerHTML = `
         <div class="data-table-wrap">
             <div class="table-summary">
                 <span>共 ${list.length} 单</span>
                 <span>合计 ${totalTons.toFixed(2)} 吨</span>
                 <span>总额 ¥${formatMoney(totalAmount)}</span>
+                <span style="color:#047857;">已收 ¥${formatMoney(totalPaid)}</span>
+                <span style="color:#b91c1c;">欠款 ¥${formatMoney(totalOwed)}</span>
             </div>
             <div class="scroll-x">
                 <table class="data-table">
@@ -432,12 +427,18 @@ function renderList() {
                             <th>出货人</th>
                             <th>单价</th>
                             <th>总金额</th>
+                            <th>已收</th>
+                            <th>欠款</th>
                             <th>状态</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${list.map(r => `
+                        ${list.map(r => {
+                            const payClass = r.paid==='已付'?'pay-yes':(r.paid==='部分付款'?'pay-part':'pay-no');
+                            const owed = r.owedAmount || 0;
+                            const owedClass = owed > 0 ? 'col-owed' : 'col-owed-zero';
+                            return `
                             <tr>
                                 <td>${formatDate(r.date)}</td>
                                 <td>${r.vehicle}</td>
@@ -446,13 +447,15 @@ function renderList() {
                                 <td>${r.person}</td>
                                 <td class="col-num">${r.price}</td>
                                 <td class="col-money">${formatMoney(r.amount)}</td>
-                                <td><span class="${r.paid==='已付'?'pay-yes':'pay-no'}">${r.paid}</span></td>
+                                <td class="col-num">${formatMoney(r.paidAmount||0)}</td>
+                                <td class="${owedClass}">${formatMoney(owed)}</td>
+                                <td><span class="${payClass}">${r.paid}</span></td>
                                 <td>
                                     <button class="act-btn act-edit" onclick="editRecord('${r.id}')">&#9998;</button>
                                     <button class="act-btn act-del" onclick="deleteRecord('${r.id}')">&#10005;</button>
                                 </td>
                             </tr>
-                        `).join('')}
+                        `;}).join('')}
                         <tr class="row-sum">
                             <td>合计</td>
                             <td>-</td>
@@ -461,6 +464,8 @@ function renderList() {
                             <td>-</td>
                             <td>-</td>
                             <td class="col-money">¥${formatMoney(totalAmount)}</td>
+                            <td class="col-num">¥${formatMoney(totalPaid)}</td>
+                            <td class="col-owed">¥${formatMoney(totalOwed)}</td>
                             <td>-</td>
                             <td>-</td>
                         </tr>
@@ -496,14 +501,19 @@ function openModal(id) {
         document.getElementById('fPerson').value = r.person;
         document.getElementById('fPrice').value = r.price;
         document.getElementById('fPaid').value = r.paid;
-        document.querySelectorAll('.radio').forEach(radio => radio.classList.toggle('active', radio.dataset.val === r.paid));
+        document.getElementById('fPaidAmount').value = r.paidAmount || 0;
+        document.querySelectorAll('[data-val]').forEach(radio => radio.classList.toggle('active', radio.dataset.val === r.paid));
+        const group = document.getElementById('paidAmountGroup');
+        group.style.display = r.paid === '部分付款' ? 'block' : 'none';
     } else {
         document.getElementById('modalTitle').innerText = '新增单据';
         document.getElementById('saleForm').reset();
         document.getElementById('editId').value = '';
         document.getElementById('fDate').value = today();
         document.getElementById('fPaid').value = '已付';
-        document.querySelectorAll('.radio').forEach(radio => radio.classList.toggle('active', radio.dataset.val === '已付'));
+        document.getElementById('fPaidAmount').value = 0;
+        document.querySelectorAll('[data-val]').forEach(radio => radio.classList.toggle('active', radio.dataset.val === '已付'));
+        document.getElementById('paidAmountGroup').style.display = 'none';
     }
     calcTotal();
     renderFilters();
@@ -515,30 +525,75 @@ function closeModal() {
 function closeModalOnOverlay(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
 
 function setPayStatus(el) {
-    document.querySelectorAll('.radio').forEach(r => r.classList.remove('active'));
+    document.querySelectorAll('[data-val]').forEach(r => r.classList.remove('active'));
     el.classList.add('active');
-    document.getElementById('fPaid').value = el.dataset.val;
+    const val = el.dataset.val;
+    document.getElementById('fPaid').value = val;
+    const group = document.getElementById('paidAmountGroup');
+    if (val === '部分付款') {
+        group.style.display = 'block';
+        calcOwed();
+    } else {
+        group.style.display = 'none';
+    }
+}
+
+function calcOwed() {
+    const total = parseFloat(document.getElementById('fTons').value) * parseFloat(document.getElementById('fPrice').value) || 0;
+    const paid = parseFloat(document.getElementById('fPaidAmount').value) || 0;
+    const diff = total - paid;
+    const box = document.getElementById('fOwedBox');
+    const label = document.getElementById('fOwed');
+    if (diff >= 0) {
+        box.style.background = '#fee2e2';
+        box.style.color = '#b91c1c';
+        label.innerText = formatMoney(diff);
+        box.innerHTML = `剩余欠款 <b id="fOwed">${formatMoney(diff)}</b> 元`;
+    } else {
+        box.style.background = '#d1fae5';
+        box.style.color = '#047857';
+        box.innerHTML = `多付预付款 <b id="fOwed">${formatMoney(-diff)}</b> 元`;
+    }
 }
 
 function calcTotal() {
     const tons = parseFloat(document.getElementById('fTons').value) || 0;
     const price = parseFloat(document.getElementById('fPrice').value) || 0;
     document.getElementById('fTotal').innerText = formatMoney(tons * price);
+    calcOwed();
 }
 
 function saveForm(e) {
     e.preventDefault();
     const id = document.getElementById('editId').value;
+    const tons = parseFloat(document.getElementById('fTons').value);
+    const price = parseFloat(document.getElementById('fPrice').value);
+    const amount = tons * price;
+    const paidStatus = document.getElementById('fPaid').value;
+    let paidAmount = 0;
+    let owedAmount = 0;
+    if (paidStatus === '已付') {
+        paidAmount = amount;
+        owedAmount = 0;
+    } else if (paidStatus === '部分付款') {
+        paidAmount = parseFloat(document.getElementById('fPaidAmount').value) || 0;
+        owedAmount = amount - paidAmount;
+    } else {
+        paidAmount = 0;
+        owedAmount = amount;
+    }
     const record = {
         id: id || Date.now().toString(),
         date: document.getElementById('fDate').value,
         vehicle: document.getElementById('fVehicle').value,
-        tons: parseFloat(document.getElementById('fTons').value),
+        tons: tons,
         type: document.getElementById('fType').value,
         person: document.getElementById('fPerson').value,
-        price: parseFloat(document.getElementById('fPrice').value),
-        amount: parseFloat(document.getElementById('fTons').value) * parseFloat(document.getElementById('fPrice').value),
-        paid: document.getElementById('fPaid').value
+        price: price,
+        amount: amount,
+        paid: paidStatus,
+        paidAmount: paidAmount,
+        owedAmount: owedAmount
     };
     if (id) {
         const idx = records.findIndex(r => r.id === id);
@@ -576,32 +631,46 @@ function groupBy(arr, key, sumKey) {
 }
 
 function renderStats() {
-    const totalTons = records.reduce((s,r) => s + r.tons, 0);
-    const totalAmount = records.reduce((s,r) => s + r.amount, 0);
-    const paidAmount = records.filter(r => r.paid === '已付').reduce((s,r) => s + r.amount, 0);
-    const unpaidAmount = records.filter(r => r.paid === '未付').reduce((s,r) => s + r.amount, 0);
-
-    document.getElementById('stTotalTons').innerText = totalTons.toFixed(2);
-    document.getElementById('stTotalAmount').innerText = formatMoney(totalAmount);
-    document.getElementById('stPaid').innerText = formatMoney(paidAmount);
-    document.getElementById('stUnpaid').innerText = formatMoney(unpaidAmount);
-
-    // 按客户统计：出货量、应收款
+    // 按客户统计：出货量、应收款、已收、欠款
     const cust = {};
     records.forEach(r => {
-        if (!cust[r.person]) cust[r.person] = { tons: 0, amount: 0 };
+        if (!cust[r.person]) cust[r.person] = { tons: 0, amount: 0, paid: 0, owed: 0 };
         cust[r.person].tons += r.tons;
         cust[r.person].amount += r.amount;
+        cust[r.person].paid += (r.paidAmount||0);
+        cust[r.person].owed += (r.owedAmount||0);
     });
-    document.getElementById('tbCustomer').innerHTML = Object.entries(cust).sort((a,b) => b[1].amount - a[1].amount)
-        .map(([k,v]) => `<tr><td>${k}</td><td>${v.tons.toFixed(2)} 吨</td><td>¥ ${formatMoney(v.amount)}</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:#999">暂无数据</td></tr>';
+    document.getElementById('tbCustomer').innerHTML = Object.entries(cust).sort((a,b) => b[1].owed - a[1].owed)
+        .map(([k,v]) => `<tr><td>${k}</td><td>${v.tons.toFixed(2)} 吨</td><td>¥ ${formatMoney(v.amount)}</td><td style="color:#047857;">¥ ${formatMoney(v.paid)}</td><td style="color:#b91c1c;font-weight:600;">¥ ${formatMoney(v.owed)}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#999">暂无数据</td></tr>';
 
-    const paidTons = records.filter(r => r.paid === '已付').reduce((s,r) => s + r.tons, 0);
-    const unpaidTons = records.filter(r => r.paid === '未付').reduce((s,r) => s + r.tons, 0);
-    document.getElementById('tbPay').innerHTML = `
-        <tr><td>已付</td><td>${paidTons.toFixed(2)} 吨</td><td>¥ ${formatMoney(paidAmount)}</td></tr>
-        <tr><td>未付</td><td>${unpaidTons.toFixed(2)} 吨</td><td>¥ ${formatMoney(unpaidAmount)}</td></tr>
-    `;
+    // 按付款状态统计（按出货人）
+    const payByPerson = {};
+    people.forEach(p => {
+        payByPerson[p] = { paid: {tons:0, amount:0}, part: {tons:0, amount:0, paidAmount:0}, unpaid: {tons:0, amount:0} };
+    });
+    records.forEach(r => {
+        if (!payByPerson[r.person]) payByPerson[r.person] = { paid: {tons:0, amount:0}, part: {tons:0, amount:0, paidAmount:0}, unpaid: {tons:0, amount:0} };
+        if (r.paid === '已付') {
+            payByPerson[r.person].paid.tons += r.tons;
+            payByPerson[r.person].paid.amount += r.amount;
+        } else if (r.paid === '部分付款') {
+            payByPerson[r.person].part.tons += r.tons;
+            payByPerson[r.person].part.amount += r.amount;
+            payByPerson[r.person].part.paidAmount += (r.paidAmount||0);
+        } else {
+            payByPerson[r.person].unpaid.tons += r.tons;
+            payByPerson[r.person].unpaid.amount += r.amount;
+        }
+    });
+    const payRows = Object.entries(payByPerson).filter(([k,v]) => v.paid.tons || v.part.tons || v.unpaid.tons);
+    document.getElementById('tbPay').innerHTML = payRows.length ? payRows.map(([k,v]) =>
+        `<tr>
+            <td><b>${k}</b></td>
+            <td style="color:#047857;">${v.paid.tons.toFixed(2)} 吨<br>¥${formatMoney(v.paid.amount)}</td>
+            <td style="color:#d97706;">${v.part.tons.toFixed(2)} 吨<br>¥${formatMoney(v.part.amount)}<br><span style="font-size:11px;">已收¥${formatMoney(v.part.paidAmount)}</span></td>
+            <td style="color:#b91c1c;">${v.unpaid.tons.toFixed(2)} 吨<br>¥${formatMoney(v.unpaid.amount)}</td>
+        </tr>`
+    ).join('') : '<tr><td colspan="4" style="text-align:center;color:#999">暂无数据</td></tr>';
 
     renderPayDetail('已付');
 }
@@ -617,22 +686,39 @@ function filterPayStatus(el) {
 }
 
 function renderPayDetail(status) {
-    const list = records.filter(r => r.paid === status).sort((a,b) => new Date(b.date) - new Date(a.date));
     const container = document.getElementById('payDetailList');
+    let list, title, payColor, payBg;
+
+    if (status === '欠款') {
+        // 欠款明细：所有还有欠款的单据（部分付款 + 未付）
+        list = records.filter(r => (r.owedAmount||0) > 0).sort((a,b) => (b.owedAmount||0) - (a.owedAmount||0));
+        title = '欠款明细';
+        payColor = '#b91c1c';
+        payBg = '#fee2e2';
+    } else {
+        list = records.filter(r => r.paid === status).sort((a,b) => new Date(b.date) - new Date(a.date));
+        title = status + '单据';
+        if (status === '已付') { payColor = '#047857'; payBg = '#d1fae5'; }
+        else if (status === '部分付款') { payColor = '#d97706'; payBg = '#fef3c7'; }
+        else { payColor = '#b91c1c'; payBg = '#fee2e2'; }
+    }
+
     if (!list.length) {
-        container.innerHTML = `<div style="text-align:center;padding:20px;color:#999;">暂无${status}单据</div>`;
+        container.innerHTML = `<div style="text-align:center;padding:20px;color:#999;">暂无${title}</div>`;
         return;
     }
     const totalAmount = list.reduce((s,r) => s + r.amount, 0);
     const totalTons = list.reduce((s,r) => s + r.tons, 0);
-    const payColor = status === '已付' ? '#047857' : '#b91c1c';
-    const payBg = status === '已付' ? '#d1fae5' : '#fee2e2';
+    const totalPaid = list.reduce((s,r) => s + (r.paidAmount||0), 0);
+    const totalOwed = list.reduce((s,r) => s + (r.owedAmount||0), 0);
     container.innerHTML = `
         <div class="data-table-wrap">
             <div class="table-summary" style="background:${payBg};color:${payColor};">
                 <span>共 ${list.length} 单</span>
                 <span>合计 ${totalTons.toFixed(2)} 吨</span>
-                <span style="font-size:16px;">${status}总额 ¥${formatMoney(totalAmount)}</span>
+                <span>总额 ¥${formatMoney(totalAmount)}</span>
+                <span>已收 ¥${formatMoney(totalPaid)}</span>
+                <span style="font-size:16px;">欠款 ¥${formatMoney(totalOwed)}</span>
             </div>
             <div class="scroll-x">
                 <table class="data-table">
@@ -643,30 +729,38 @@ function renderPayDetail(status) {
                             <th>吨位</th>
                             <th>类型</th>
                             <th>出货人</th>
-                            <th>单价</th>
                             <th>总金额</th>
+                            <th>已收</th>
+                            <th>欠款</th>
+                            <th>状态</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${list.map(r => `
+                        ${list.map(r => {
+                            const payClass = r.paid==='已付'?'pay-yes':(r.paid==='部分付款'?'pay-part':'pay-no');
+                            return `
                             <tr>
                                 <td>${formatDate(r.date)}</td>
                                 <td>${r.vehicle}</td>
                                 <td class="col-num">${r.tons.toFixed(2)}</td>
                                 <td><span class="badge badge-blue">${r.type}</span></td>
                                 <td>${r.person}</td>
-                                <td class="col-num">${r.price}</td>
                                 <td class="col-money">${formatMoney(r.amount)}</td>
+                                <td class="col-num">${formatMoney(r.paidAmount||0)}</td>
+                                <td class="col-owed">${formatMoney(r.owedAmount||0)}</td>
+                                <td><span class="${payClass}">${r.paid}</span></td>
                             </tr>
-                        `).join('')}
+                        `;}).join('')}
                         <tr class="row-sum">
                             <td>合计</td>
                             <td>-</td>
                             <td class="col-num">${totalTons.toFixed(2)}</td>
                             <td>-</td>
                             <td>-</td>
-                            <td>-</td>
                             <td class="col-money">¥${formatMoney(totalAmount)}</td>
+                            <td class="col-num">¥${formatMoney(totalPaid)}</td>
+                            <td class="col-owed">¥${formatMoney(totalOwed)}</td>
+                            <td>-</td>
                         </tr>
                     </tbody>
                 </table>
@@ -748,15 +842,17 @@ function exportData() {
     // 汇总统计
     const totalTons = records.reduce((s,r) => s + r.tons, 0);
     const totalAmount = records.reduce((s,r) => s + r.amount, 0);
-    const paidAmount = records.filter(r => r.paid === '已付').reduce((s,r) => s + r.amount, 0);
-    const unpaidAmount = records.filter(r => r.paid === '未付').reduce((s,r) => s + r.amount, 0);
+    const totalPaid = records.reduce((s,r) => s + (r.paidAmount||0), 0);
+    const totalOwed = records.reduce((s,r) => s + (r.owedAmount||0), 0);
 
     // 按客户统计
     const cust = {};
     records.forEach(r => {
-        if (!cust[r.person]) cust[r.person] = { tons: 0, amount: 0 };
+        if (!cust[r.person]) cust[r.person] = { tons: 0, amount: 0, paid: 0, owed: 0 };
         cust[r.person].tons += r.tons;
         cust[r.person].amount += r.amount;
+        cust[r.person].paid += (r.paidAmount||0);
+        cust[r.person].owed += (r.owedAmount||0);
     });
 
     const sortedRecords = [...records].sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -764,13 +860,13 @@ function exportData() {
     let lines = [];
     lines.push(['水泥销售记账备份', '日期：' + today()]);
     lines.push([]);
-    lines.push(['总吨位(吨)', '总销售额(元)', '已付金额(元)', '未付金额(元)']);
-    lines.push([totalTons.toFixed(2), totalAmount.toFixed(2), paidAmount.toFixed(2), unpaidAmount.toFixed(2)]);
+    lines.push(['总吨位(吨)', '总销售额(元)', '已收金额(元)', '剩余欠款(元)']);
+    lines.push([totalTons.toFixed(2), totalAmount.toFixed(2), totalPaid.toFixed(2), totalOwed.toFixed(2)]);
     lines.push([]);
 
     // 单据明细
     lines.push(['销售明细']);
-    lines.push(['日期', '车号', '吨位(吨)', '货物类型', '出货人', '单价(元/吨)', '总金额(元)', '付款状态']);
+    lines.push(['日期', '车号', '吨位(吨)', '货物类型', '出货人', '单价(元/吨)', '总金额(元)', '已收(元)', '欠款(元)', '付款状态']);
     sortedRecords.forEach(r => {
         lines.push([
             formatDate(r.date),
@@ -780,17 +876,19 @@ function exportData() {
             r.person,
             r.price.toFixed(2),
             r.amount.toFixed(2),
+            (r.paidAmount||0).toFixed(2),
+            (r.owedAmount||0).toFixed(2),
             r.paid
         ]);
     });
-    lines.push(['合计', '', totalTons.toFixed(2), '', '', '', totalAmount.toFixed(2), '']);
+    lines.push(['合计', '', totalTons.toFixed(2), '', '', '', totalAmount.toFixed(2), (totalPaid||0).toFixed(2), (totalOwed||0).toFixed(2), '']);
     lines.push([]);
 
     // 按客户统计
     lines.push(['按客户统计']);
-    lines.push(['客户', '出货量(吨)', '应收款(元)']);
-    Object.entries(cust).sort((a,b) => b[1].amount - a[1].amount).forEach(([k,v]) => {
-        lines.push([k, v.tons.toFixed(2), v.amount.toFixed(2)]);
+    lines.push(['客户', '出货量(吨)', '应收款(元)', '已收(元)', '欠款(元)']);
+    Object.entries(cust).sort((a,b) => b[1].owed - a[1].owed).forEach(([k,v]) => {
+        lines.push([k, v.tons.toFixed(2), v.amount.toFixed(2), v.paid.toFixed(2), v.owed.toFixed(2)]);
     });
 
     const csv = '\uFEFF' + lines.map(row => row.map(csvCell).join(',')).join('\r\n');
